@@ -71,6 +71,8 @@ class SudokuCanvas(context: Context) : View(context) {
     private var currJ = -1
     private var keyboardOffset = 40
     private var keyboardKeyLength = 50
+    private var isSolved = false
+    private var isChecked = false
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
@@ -95,6 +97,7 @@ class SudokuCanvas(context: Context) : View(context) {
         } else if (canvas != null) {
             Log.i("INFO", "Canvas is ready, response is not")
             canvas.drawBitmap(extraBitmap, 0f, 0f, paint)
+            canvas.drawText("Loading", this.leftMargin.toFloat(), this.topMargin.toFloat(), this.textPaint)
         }
     }
 
@@ -123,6 +126,38 @@ class SudokuCanvas(context: Context) : View(context) {
                 (topX + length/2.0 + 3*textSize/4).toFloat(), textPaint)
             i++
             leftX += length + leftOffset
+        }
+
+        leftX = leftMargin;
+        topX = topMargin * 3 + this.length * 10
+
+        val resetButton = Rect(leftX, topX, leftX + this.length* 2 ,topX + this.length)
+        val resetText = "Reset"
+        val checkText = "Check"
+        val checkButton = Rect(leftX + this.leftMargin + this.length * 2, topX, leftX + this.leftMargin + this.length * 4 ,topX + this.length)
+
+        canvas.drawRect(resetButton, buttonPaint)
+        canvas.drawText(resetText,
+            (leftX + this.length - 3*this.textSize/2.0).toFloat(),
+            (topX + this.length/2.0 + this.textSize/2.0).toFloat(), textPaint)
+        canvas.drawRect(checkButton, buttonPaint)
+        canvas.drawText(checkText,
+            (leftX + this.leftMargin + this.length * 2 + this.length - 3*this.textSize/2.0).toFloat(),
+            (topX + this.length/2.0 + this.textSize/2.0).toFloat(), textPaint)
+        if (this.isChecked) {
+            this.isChecked = false
+            var text = "Incorrect"
+            if (this.isSolved) {
+                text = "Correct!"
+                textPaint.color = Color.GREEN
+            } else {
+                textPaint.color = Color.RED
+            }
+            canvas.drawText(
+                text,
+                leftMargin.toFloat(), (topMargin * 4 + this.length * 11).toFloat(), textPaint
+            )
+            textPaint.color = Color.BLUE
         }
     }
     private fun drawNumbers(rows: Int, columns: Int, canvas: Canvas, paint: Paint, outlinePaint: Paint,
@@ -226,7 +261,7 @@ class SudokuCanvas(context: Context) : View(context) {
                     }
                 } else {
                     var indexY = this.length*9 + this.topMargin*2
-                    Log.i("Keyboard", "Index Y is $indexY")
+                    Log.i("Keyboard", "Event occurred at (${event.y} , ${event.x})")
                     if (event.y >= indexY && event.y <= indexY + this.keyboardKeyLength) {
                         var counter = 0
                         while((leftMargin + (this.keyboardOffset + this.keyboardKeyLength) * counter) < event.x)
@@ -241,6 +276,17 @@ class SudokuCanvas(context: Context) : View(context) {
                                     addNumber(counter - 1)
                             }
                         }
+                    } else {
+                        indexY = this.length*10 + this.topMargin*3
+                        if (event.y >= indexY && event.y <= indexY + this.length) {
+                            var resetX = this.leftMargin
+                            var checkX = resetX + this.leftMargin + this.length * 2
+                            if (event.x >= resetX && event.x <= resetX + this.length * 2) {
+                                resetSolution();
+                            } else if (event.x >= checkX && event.x <= checkX + this.length * 2) {
+                                checkSolution();
+                            }
+                        }
                     }
                 }
                 this.invalidate()
@@ -248,7 +294,73 @@ class SudokuCanvas(context: Context) : View(context) {
         }
         return  true
     }
+    private fun resetSolution() {
+        var counter = 0
+        while (counter < 81) {
+            this.puzzle?.get(counter/9)?.get(counter%9)?.let {
+                this.solution?.get(counter/9)?.set(counter%9,
+                    it
+                )
+            };
+            counter++
+        }
+    }
+    private fun  checkSolution() {
+        this.isChecked = true
+        var hash : HashMap<Int, Int> = HashMap<Int, Int>()
+        for(i in 1..9)
+            hash[i] = 0
+        //check each row
+        for (i in 0..8) {
+            for (j in 1..9) {
+                hash[j] = 0
+            }
+            for(j in 0..8) {
+                if (solution?.get(i)?.get(j) != -1)
+                    hash[solution?.get(i)?.get(j)]?.plus(1)
+            }
+            for (j in 1..9) {
+                if (hash[j] != 1)
+                    return
+            }
+        }
 
+        //check for each column
+        for (i in 0..8) {
+            for (j in 1..9) {
+                hash[j] = 0
+            }
+            for(j in 0..8) {
+                if (solution?.get(j)?.get(i) != -1)
+                    hash[solution?.get(j)?.get(i)]?.plus(1)
+            }
+            for (j in 1..9) {
+                if (hash[j] != 1)
+                    return
+            }
+        }
+
+        //check for boxes
+        for (i in 0..2) {
+            for(j in 0..2) {
+                for (k in 1..9) {
+                    hash[k] = 0
+                }
+
+                for (k in 0..2) {
+                    for(l in 0..2) {
+                        if (solution?.get(i * 3 + k)?.get(j * 3 + l) != -1)
+                            hash[solution?.get(i * 3 + k)?.get(j * 3 + l)]?.plus(1)
+                    }
+                }
+                for (k in 1..9) {
+                    if (hash[k] != 1)
+                        return
+                }
+            }
+        }
+        this.isSolved = true
+    }
     private fun addNumber(i: Int) {
         Log.i("INFO", "Adding $i")
         if (currI != -1 && currJ != -1) {
